@@ -1,0 +1,757 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////////////////////////////////////
+// ENUMS
+//////////////////////////////////////////////////////
+
+enum UserRole {
+  CLIENT
+  FREELANCER
+  ADMIN
+}
+
+enum ProjectStatus {
+  PENDING_APPROVAL
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  CLOSED
+  REJECTED
+}
+
+enum BidStatus {
+  PENDING
+  SHORTLISTED
+  ACCEPTED
+  REJECTED
+}
+
+enum ContractStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  ESCROW
+  CARD
+  UPI
+  BANK_TRANSFER
+}
+
+enum NotificationType {
+  MESSAGE
+  BID
+  PAYMENT
+  CONTRACT
+  PROJECT
+  REVIEW
+  SYSTEM
+}
+
+enum DeliverableStatus {
+  UPLOADED
+  APPROVED
+  REJECTED
+  REVISION_REQUESTED
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum ProjectVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum DisputeStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  ESCROWED
+  RELEASED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum ReviewTarget {
+  CLIENT
+  FREELANCER
+}
+
+enum AdminActionType {
+  VERIFY_USER
+  BAN_USER
+  UNBAN_USER
+  APPROVE_PROJECT
+  REJECT_PROJECT
+  DELETE_REVIEW
+  RESOLVE_DISPUTE
+  REFUND_PAYMENT
+}
+
+//////////////////////////////////////////////////////
+// USER
+//////////////////////////////////////////////////////
+
+model User {
+  id              String    @id @default(uuid())
+  name            String
+  email           String    @unique
+  emailVerifiedAt DateTime?
+  password        String
+  role            UserRole
+  isVerified      Boolean   @default(false)
+  isBanned        Boolean   @default(false)
+
+  // Profile
+  avatar       String?
+  bio          String?
+  portfolio    String?
+  github       String?
+  linkedin     String?
+  phone        String?
+  location     String?
+  skills       String[]
+  experience   String?
+  hourlyRate   Float?
+  availability Boolean  @default(true)
+
+  rating            Float   @default(0)
+  totalReviews      Int     @default(0)
+  completedProjects Int     @default(0)
+  totalEarnings     Float   @default(0)
+  totalSpent        Float   @default(0)
+  profileCompleted  Boolean @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  projects        Project[]
+  bids            Bid[]
+  reviewsWritten  Review[]  @relation("ReviewsWritten")
+  reviewsReceived Review[]  @relation("ReviewsReceived")
+
+  clientProfile     ClientProfile?
+  freelancerProfile FreelancerProfile?
+  adminProfile      AdminProfile?
+
+  adminLogsCreated      AdminLog[]     @relation("AdminLogsCreated")
+  adminLogsTarget       AdminLog[]     @relation("AdminLogsTarget")
+  sentMessages          Message[]      @relation("SentMessages")
+  receivedMessages      Message[]      @relation("ReceivedMessages")
+  notifications         Notification[]
+  payments              Payment[]
+  conversationsAsFirst  Conversation[] @relation("ConversationUserOne")
+  conversationsAsSecond Conversation[] @relation("ConversationUserTwo")
+  portfolioItems        Portfolio[]
+  savedProjects         SavedProject[]
+  deliverables          Deliverable[]
+  clientContracts       Contract[]     @relation("ClientContracts")
+  freelancerContracts   Contract[]     @relation("FreelancerContracts")
+  receivedPayments      Payment[]      @relation("ReceivedPayments")
+
+  raisedDisputes          Dispute[]                @relation("RaisedDisputes")
+  againstDisputes         Dispute[]                @relation("AgainstDisputes")
+  resolvedDisputes        Dispute[]                @relation("ResolvedDisputes")
+  refreshTokens           RefreshToken[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  refunds                 Refund[]
+}
+
+//////////////////////////////////////////////////////
+// PROJECT
+//////////////////////////////////////////////////////
+
+model Project {
+  id              String            @id @default(uuid())
+  title           String
+  description     String
+  budget          Float
+  category        String?
+  skills          String[]
+  deadline        DateTime?
+  experienceLevel String?
+  duration        String?
+  status          ProjectStatus     @default(PENDING_APPROVAL)
+  visibility      ProjectVisibility @default(PUBLIC)
+  isFeatured      Boolean           @default(false)
+  featuredUntil   DateTime?
+  isActive        Boolean           @default(true)
+  maxFreelancers  Int?
+  location        String?
+  remote          Boolean           @default(true)
+  thumbnail       String?
+
+  clientId String
+  client   User   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  reviews       Review[]
+  bids          Bid[]
+  contracts     Contract[]
+  milestones    Milestone[]
+  savedBy       SavedProject[]
+  attachments   ProjectAttachment[]
+  conversations Conversation[]
+
+  categoryId  String?
+  categoryRef Category? @relation(fields: [categoryId], references: [id])
+  skillRefs   Skill[]   @relation("ProjectSkills")
+  disputes    Dispute[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([categoryId])
+  @@index([createdAt])
+}
+
+//////////////////////////////////////////////////////
+// BID
+//////////////////////////////////////////////////////
+
+model Bid {
+  id            String    @id @default(uuid())
+  amount        Float
+  proposal      String
+  deliveryDays  Int
+  coverLetter   String?
+  attachmentUrl String?
+  status        BidStatus @default(PENDING)
+  acceptedAt    DateTime?
+  rejectedAt    DateTime?
+  contract      Contract?
+  freelancerId  String
+  freelancer    User      @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([projectId])
+  @@index([freelancerId])
+  @@index([status])
+}
+
+//////////////////////////////////////////////////////
+// CONTRACT
+//////////////////////////////////////////////////////
+
+model Contract {
+  id           String         @id @default(uuid())
+  agreedBudget Float
+  deadline     DateTime?
+  status       ContractStatus @default(ACTIVE)
+  acceptedAt   DateTime?
+  startDate    DateTime       @default(now())
+  endDate      DateTime?
+  completedAt  DateTime?
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  clientId     String
+  client       User   @relation("ClientContracts", fields: [clientId], references: [id], onDelete: Cascade)
+  freelancerId String
+  freelancer   User   @relation("FreelancerContracts", fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  bidId         String?        @unique
+  bid           Bid?           @relation(fields: [bidId], references: [id], onDelete: SetNull)
+  reviews       Review[]
+  conversations Conversation[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  milestones   Milestone[]
+  deliverables Deliverable[]
+  payments     Payment[]
+  disputes     Dispute[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+//////////////////////////////////////////////////////
+// MILESTONE
+//////////////////////////////////////////////////////
+
+model Milestone {
+  id              String          @id @default(cuid())
+  title           String
+  description     String?
+  amount          Float
+  dueDate         DateTime?
+  status          MilestoneStatus @default(PENDING)
+  order           Int             @default(1)
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  paymentReleased Boolean         @default(false)
+
+  projectId  String
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contractId String?
+  contract   Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//////////////////////////////////////////////////////
+// PAYMENT
+//////////////////////////////////////////////////////
+
+model Payment {
+  id              String        @id @default(uuid())
+  amount          Float
+  platformFee     Float         @default(0)
+  tax             Float         @default(0)
+  currency        String        @default("INR")
+  status          PaymentStatus @default(PENDING)
+  paymentMethod   PaymentMethod @default(ESCROW)
+  transactionId   String?       @unique
+  receiptUrl      String?
+  gatewayResponse Json?
+  paidAt          DateTime?
+  releasedAt      DateTime?
+  escrowedAt      DateTime?
+  refundedAt      DateTime?
+
+  payerId     String?
+  payer       User?      @relation(fields: [payerId], references: [id], onDelete: SetNull)
+  receiverId  String?
+  receiver    User?      @relation("ReceivedPayments", fields: [receiverId], references: [id], onDelete: SetNull)
+  contractId  String?
+  contract    Contract?  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  milestoneId String?
+  milestone   Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  deletedAt  DateTime?
+  commission PlatformCommission?
+  refunds    Refund[]
+
+  @@index([payerId])
+  @@index([contractId])
+  @@index([status])
+  @@index([paymentMethod])
+}
+
+//////////////////////////////////////////////////////
+// MESSAGE
+//////////////////////////////////////////////////////
+
+model Message {
+  id         String  @id @default(uuid())
+  content    String
+  isRead     Boolean @default(false)
+  attachment String?
+
+  senderId       String
+  sender         User          @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId     String
+  receiver       User          @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+  @@index([conversationId])
+}
+
+//////////////////////////////////////////////////////
+// REVIEW
+//////////////////////////////////////////////////////
+
+model Review {
+  id         String       @id @default(uuid())
+  rating     Int
+  comment    String?
+  targetType ReviewTarget
+
+  reviewerId String
+  revieweeId String
+
+  projectId  String?
+  contractId String?
+
+  reviewer User @relation("ReviewsWritten", fields: [reviewerId], references: [id], onDelete: Cascade)
+  reviewee User @relation("ReviewsReceived", fields: [revieweeId], references: [id], onDelete: Cascade)
+
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  contract Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([contractId, reviewerId, revieweeId])
+  @@index([reviewerId])
+  @@index([revieweeId])
+  @@index([projectId])
+  @@index([contractId])
+}
+
+//////////////////////////////////////////////////////
+// DELIVERABLE
+//////////////////////////////////////////////////////
+
+model Deliverable {
+  id         String            @id @default(uuid())
+  fileName   String
+  fileUrl    String
+  fileType   String
+  version    Int               @default(1)
+  status     DeliverableStatus @default(UPLOADED)
+  feedback   String?
+  approvedAt DateTime?
+
+  contractId   String
+  contract     Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([contractId])
+  @@index([status])
+}
+
+//////////////////////////////////////////////////////
+// PROJECT ATTACHMENT
+//////////////////////////////////////////////////////
+
+model ProjectAttachment {
+  id         String  @id @default(uuid())
+  fileName   String
+  fileUrl    String
+  fileType   String
+  fileSize   Int?
+  mimeType   String?
+  uploadedBy String?
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+//////////////////////////////////////////////////////
+// CONVERSATION
+//////////////////////////////////////////////////////
+
+model Conversation {
+  id            String    @id @default(uuid())
+  lastMessage   String?
+  lastMessageAt DateTime?
+
+  participant1Id String
+  participant1   User   @relation("ConversationUserOne", fields: [participant1Id], references: [id])
+
+  participant2Id String
+  participant2   User   @relation("ConversationUserTwo", fields: [participant2Id], references: [id])
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  contractId String?
+  contract   Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([participant1Id])
+  @@index([participant2Id])
+  @@index([projectId])
+  @@index([contractId])
+}
+
+//////////////////////////////////////////////////////
+// NOTIFICATION
+//////////////////////////////////////////////////////
+
+model Notification {
+  id      String           @id @default(uuid())
+  title   String
+  message String
+  type    NotificationType
+  isRead  Boolean          @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+//////////////////////////////////////////////////////
+// PORTFOLIO
+//////////////////////////////////////////////////////
+
+model Portfolio {
+  id           String   @id @default(uuid())
+  title        String
+  description  String?
+  imageUrl     String?
+  projectUrl   String?
+  githubUrl    String?
+  technologies String[]
+  featured     Boolean  @default(false)
+
+  freelancerId String
+  freelancer   User   @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([freelancerId])
+}
+
+//////////////////////////////////////////////////////
+// SAVED PROJECT
+//////////////////////////////////////////////////////
+
+model SavedProject {
+  id           String  @id @default(uuid())
+  freelancerId String
+  freelancer   User    @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+  projectId    String
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([freelancerId, projectId])
+  @@index([freelancerId])
+  @@index([projectId])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  projects    Project[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Skill {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  projects Project[] @relation("ProjectSkills")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Dispute {
+  id          String        @id @default(cuid())
+  reason      String
+  description String?
+  status      DisputeStatus @default(OPEN)
+
+  projectId  String?
+  contractId String?
+  raisedById String
+  againstId  String?
+
+  resolvedById String?
+  resolution   String?
+  resolvedAt   DateTime?
+
+  project    Project?  @relation(fields: [projectId], references: [id])
+  contract   Contract? @relation(fields: [contractId], references: [id])
+  raisedBy   User      @relation("RaisedDisputes", fields: [raisedById], references: [id])
+  against    User?     @relation("AgainstDisputes", fields: [againstId], references: [id])
+  resolvedBy User?     @relation("ResolvedDisputes", fields: [resolvedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Refund {
+  id     String       @id @default(cuid())
+  amount Float
+  reason String?
+  status RefundStatus @default(PENDING)
+
+  paymentId     String
+  requestedById String
+
+  payment     Payment @relation(fields: [paymentId], references: [id])
+  requestedBy User    @relation(fields: [requestedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model ClientProfile {
+  id          String  @id @default(uuid())
+  companyName String?
+  website     String?
+  totalSpent  Float   @default(0)
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FreelancerProfile {
+  id               String   @id @default(uuid())
+  title            String?
+  skills           String[]
+  experience       String?
+  hourlyRate       Float?
+  portfolioUrl     String?
+  totalEarnings    Float    @default(0)
+  availableForWork Boolean  @default(true)
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdminProfile {
+  id          String   @id @default(uuid())
+  permissions String[]
+  department  String?
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdminLog {
+  id          String          @id @default(uuid())
+  action      AdminActionType
+  description String?
+
+  adminId      String
+  targetUserId String?
+  targetType   String?
+  targetId     String?
+
+  admin      User  @relation("AdminLogsCreated", fields: [adminId], references: [id], onDelete: Cascade)
+  targetUser User? @relation("AdminLogsTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([targetUserId])
+  @@index([action])
+}
+
+model PlatformCommission {
+  id         String @id @default(uuid())
+  amount     Float
+  percentage Float
+  currency   String @default("INR")
+
+  paymentId String  @unique
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model GlobalSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
