@@ -1,6 +1,0 @@
-{
-  "name": "Innovexa Catalyst",
-  "description": "Elite Freelance Marketplace connecting top-tier freelance experts with global corporate powerhouses.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
